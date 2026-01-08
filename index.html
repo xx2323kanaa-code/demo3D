@@ -578,16 +578,30 @@
 
 <div id="appContainer">
   <div id="videoWrapper">
-    <video id="video" autoplay playsinline></video>
+    <video id="video"
+       autoplay
+       playsinline
+       style="
+         position: fixed;
+         top: 0;
+         left: 0;
+         width: 100vw;
+         height: 100vh;
+         object-fit: cover;
+         z-index: 1;
+       ">
+</video>
+
     <canvas id="renderCanvas"></canvas>
 <!-- ===== PNG overlay (②) ===== -->
 <img id="handPng"
      src="fullopen.png"
      style="
        position: fixed;
-       top: 22%;
+       top: 25%;
        left: 35%;
-       width: 15%;
+transform: translateX(-50%);
+       width: 30%;
        height: auto;
        opacity: 0.9;
        pointer-events: none;
@@ -2048,7 +2062,7 @@ ${detSummary}
     });
   });
 })();
-  // ===== FORCE CAMERA START (DEMO) =====
+// ===== FORCE CAMERA START (DEMO) =====
 (function () {
   const startBtn = document.getElementById('startCameraBtn');
   const video   = document.getElementById('video');
