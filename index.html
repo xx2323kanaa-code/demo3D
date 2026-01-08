@@ -2027,6 +2027,28 @@ ${detSummary}
   });
 
 })();
+  // ===== DEMO ONLY: button -> PNG switch =====
+(function () {
+  const handImg = document.getElementById('handPng');
+  if (!handImg) return;
+
+  const map = {
+    simPen:   'pen1.png',
+    simPhone:'phone1.png',
+    simKey:  'key1.png',
+    simSalute:'salute.png'
+  };
+
+  Object.keys(map).forEach(btnId => {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+
+    btn.addEventListener('click', () => {
+      handImg.src = map[btnId];
+      handImg.style.display = 'block';
+    });
+  });
+})();
 </script>
 
 </body>
