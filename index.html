@@ -2073,34 +2073,7 @@ ${detSummary}
   });
 })();
 // ===== FORCE CAMERA START (DEMO) =====
-(function () {
-  const startBtn = document.getElementById('startCameraBtn');
-  const video   = document.getElementById('video');
-  const handImg = document.getElementById('handPng');
 
-  if (!startBtn || !video) return;
-
-  startBtn.addEventListener('click', async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
-        audio: false
-      });
-
-      video.srcObject = stream;
-      video.play();
-
-      // PNGは消さない（未来感のため）
-      if (handImg) {
-        handImg.style.display = 'block';
-      }
-
-    } catch (e) {
-      console.error('Camera start failed:', e);
-      alert('カメラを起動できませんでした');
-    }
-  });
-})();
 
 </script>
 
