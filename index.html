@@ -592,7 +592,17 @@
        ">
 </video>
 
-    <canvas id="renderCanvas"></canvas>
+    <canvas id="renderCanvas"
+        style="
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100vw;
+          height: 100vh;
+          z-index: 0;
+          pointer-events: none;
+        ">
+</canvas>
 <!-- ===== PNG overlay (②) ===== -->
 <img id="handPng"
      src="fullopen.png"
