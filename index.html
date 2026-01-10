@@ -888,6 +888,18 @@ transform: translateX(-50%);
   let initCamerasDone = false;
   let initCustomDone = false;
 
+  // hand PNG overlay state
+  const handPngEl = document.getElementById('handPng');
+  const handPngBaseOpacity = 0.9;
+  let phoneHoldStart = 0;
+  let phoneAutoActive = false;
+  let detectPauseUntil = 0;
+  let relaxRestoreTimer = 0;
+  let penHoldStart = 0;
+  let penAutoActive = false;
+  let detectPausedByPen = false;
+  let penDisplayTimer = 0;
+
   function appendInitLog(msg) {
     if (!initLogEl) return;
     const now = new Date();
@@ -967,6 +979,50 @@ transform: translateX(-50%);
   function getFreezeDurationMs() {
     const userMs = (parseInt(freezeSlider.value, 10) || 3) * 1000;
     return Math.max(2000, userMs); // ALWAYS >= 2s (for demo readability)
+  }
+
+  const handPngMap = {
+    simEgg:   { src: 'egg0.png', width: '90%', left: '40%' },
+    simPen:   { src: 'pen1.png', width: '60%', left: '38%' },
+    simPhone: { src: 'phone1.png', width: '90%', left: '40%', top: '20%' },
+    simKey:   { src: 'coin0.png', width: '60%', left: '35%' },
+    simSalute:{ src: 'salute.png', width: '60%', left: '35%' }
+  };
+  window.handPngMap = handPngMap;
+
+  function applyHandPngConfig(cfg) {
+    if (!handPngEl || !cfg) return;
+    handPngEl.src = cfg.src;
+    handPngEl.style.width = cfg.width || '60%';
+    handPngEl.style.left = cfg.left || '35%';
+    handPngEl.style.top = cfg.top || '25%';
+    handPngEl.style.opacity = String(cfg.opacity ?? handPngBaseOpacity);
+    handPngEl.style.display = 'block';
+  }
+
+  function setHandPngOpacity(value) {
+    if (!handPngEl) return;
+    handPngEl.style.opacity = String(value);
+  }
+
+  function triggerPhoneAuto(now) {
+    applyHandPngConfig(handPngMap.simPhone);
+    phoneAutoActive = true;
+    phoneHoldStart = 0;
+    detectPauseUntil = now + 1000;
+    setTimeout(() => { phoneAutoActive = false; }, 1000);
+  }
+
+  function triggerPenAuto(now) {
+    applyHandPngConfig(handPngMap.simPen);
+    penAutoActive = true;
+    penHoldStart = 0;
+    detectPausedByPen = true;
+    if (penDisplayTimer) clearTimeout(penDisplayTimer);
+    penDisplayTimer = setTimeout(() => {
+      penAutoActive = false;
+      setHandPngOpacity(handPngBaseOpacity);
+    }, 2000);
   }
 
   // ======== Helper: hand display ========
@@ -1353,6 +1409,18 @@ if (restImg && saluteImg) {
         return;
       }
 
+      if (detectPausedByPen) {
+        latestHudLine = 'Pen detected: overlay shown (paused until relax)';
+        setTimeout(loop, 200);
+        return;
+      }
+
+      if (now < detectPauseUntil) {
+        latestHudLine = 'Phone detected: overlay shown (detection paused)';
+        setTimeout(loop, 200);
+        return;
+      }
+
       // Demo freeze keeps current pose visible
       if (now < demoUntil) {
         latestHudLine = 'DEMO freeze (2s)';
@@ -1457,6 +1525,33 @@ if (restImg && saluteImg) {
         lastDominant = dominant;
         lastBestScore = bestScore;
         lastObjectsCount = objects.length;
+
+        if (dominant === 'phone') {
+          if (!phoneHoldStart) phoneHoldStart = now;
+          if (!phoneAutoActive && (now - phoneHoldStart) >= 200) {
+            triggerPhoneAuto(now);
+            statusEl.textContent = 'PHONE detected: overlay ON (paused 1s).';
+            latestHudLine = 'Phone detected: overlay ON (paused 1s)';
+            setTimeout(loop, 200);
+            return;
+          }
+        } else {
+          phoneHoldStart = 0;
+        }
+
+        if (dominant === 'pen') {
+          if (!penHoldStart) penHoldStart = now;
+          if (!penAutoActive && (now - penHoldStart) >= 1000) {
+            triggerPenAuto(now);
+            statusEl.textContent = 'PEN detected: overlay ON (paused until relax).';
+            latestHudLine = 'Pen detected: overlay ON (paused until relax)';
+            setTimeout(loop, 200);
+            return;
+          }
+        } else {
+          penHoldStart = 0;
+        }
+
 
         lastGroups.push(dominant);
         if (lastGroups.length > 5) lastGroups.shift();
@@ -1903,6 +1998,25 @@ ${detSummary}
   lockBtn.addEventListener('click', () => {
     lockActive = true;
     clearLockedVisual();
+    if (currentGroup === 'pen') {
+      applyHandPngConfig({
+        src: 'pen0.png',
+        width: handPngEl?.style.width || '60%',
+        left: handPngEl?.style.left || '38%',
+        top: handPngEl?.style.top || '25%',
+        opacity: 1
+      });
+    } else if (currentGroup === 'key') {
+      applyHandPngConfig({
+        src: 'key1.png',
+        width: handPngEl?.style.width || '60%',
+        left: handPngEl?.style.left || '35%',
+        top: handPngEl?.style.top || '25%',
+        opacity: 1
+      });
+    } else {
+      setHandPngOpacity(1);
+    }
 
     if (currentGroup === 'none') {
       handRelaxed.classList.add('locked');
@@ -1937,6 +2051,7 @@ ${detSummary}
       return;
     }
     clearLockedVisual();
+    setHandPngOpacity(0.35);
     statusEl.textContent = 'Mini-Open: thickness reset (you can Lock again).';
     latestHudLine = 'Mini-Open (visual only)';
     updateHud();
@@ -1950,12 +2065,32 @@ ${detSummary}
     freezeBoxes = [];
     freezeGroup = 'none';
     demoUntil = 0;
+    detectPausedByPen = false;
+    penHoldStart = 0;
+    penAutoActive = false;
+    if (penDisplayTimer) {
+      clearTimeout(penDisplayTimer);
+      penDisplayTimer = 0;
+    }
 
     activateHand('none');
     lockBtn.textContent = 'Lock';
     resultEl.textContent = 'State: RELAXED';
     statusEl.textContent = 'Full Relax: lock & freeze cleared. Detection resumes.';
     latestHudLine = makeSvgHudLine();
+    if (handPngEl) {
+      if (relaxRestoreTimer) clearTimeout(relaxRestoreTimer);
+      applyHandPngConfig({
+        src: 'fullopen.png',
+        width: handPngEl.style.width || '60%',
+        left: handPngEl.style.left || '35%',
+        top: handPngEl.style.top || '25%',
+        opacity: 1
+      });
+      relaxRestoreTimer = setTimeout(() => {
+        setHandPngOpacity(handPngBaseOpacity);
+      }, 1500);
+    }
     updateHud();
   });
 
@@ -2304,10 +2439,10 @@ ${detSummary}
   const handImg = document.getElementById('handPng');
   if (!handImg) return;
 
-  const map = {
+  const map = window.handPngMap || {
     simEgg:   { src: 'egg0.png', width: '90%', left: '40%' },
-    simPen:   { src: 'pen1.png', width: '60%', left: '35%' },
-    simPhone: { src: 'phone1.png', width: '90%', left: '40%' },
+    simPen:   { src: 'pen1.png', width: '60%', left: '38%' },
+    simPhone: { src: 'phone1.png', width: '90%', left: '40%', top: '20%' },
     simKey:   { src: 'key1.png', width: '60%', left: '35%' },
     simSalute:{ src: 'salute.png', width: '60%', left: '35%' }
   };
@@ -2321,6 +2456,7 @@ ${detSummary}
       handImg.src = cfg.src;
       handImg.style.width = cfg.width || '60%';
       handImg.style.left = cfg.left || '35%';
+      handImg.style.top = cfg.top || '25%';
       handImg.style.display = 'block';
     });
   });
