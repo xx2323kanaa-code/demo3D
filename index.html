@@ -673,7 +673,7 @@
        top: 25%;
        left: 35%;
 transform: translateX(-50%);
-       width: 30%;
+       width: 60%;
        height: auto;
        opacity: 0.9;
        pointer-events: none;
@@ -2305,10 +2305,11 @@ ${detSummary}
   if (!handImg) return;
 
   const map = {
-    simPen:   'pen1.png',
-    simPhone:'phone1.png',
-    simKey:  'key1.png',
-    simSalute:'salute.png'
+    simEgg:   { src: 'egg0.png', width: '90%', left: '40%' },
+    simPen:   { src: 'pen1.png', width: '60%', left: '35%' },
+    simPhone: { src: 'phone1.png', width: '90%', left: '40%' },
+    simKey:   { src: 'key1.png', width: '60%', left: '35%' },
+    simSalute:{ src: 'salute.png', width: '60%', left: '35%' }
   };
 
   Object.keys(map).forEach(btnId => {
@@ -2316,7 +2317,10 @@ ${detSummary}
     if (!btn) return;
 
     btn.addEventListener('click', () => {
-      handImg.src = map[btnId];
+      const cfg = map[btnId];
+      handImg.src = cfg.src;
+      handImg.style.width = cfg.width || '60%';
+      handImg.style.left = cfg.left || '35%';
       handImg.style.display = 'block';
     });
   });
