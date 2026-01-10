@@ -319,6 +319,48 @@
       border-radius: 20px;
       cursor: pointer;
     }
+    #initPanel {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 6px;
+    }
+    .init-btn {
+      padding: 6px 10px;
+      font-size: 12px;
+      border-radius: 10px;
+      border: 1px solid #555;
+      background: #2b2b2b;
+      color: #fff;
+      cursor: pointer;
+    }
+    #initAllBtn { background: #1a6; }
+    #clearInitLogBtn { background: #444; }
+    #initLog {
+      margin: 8px auto 0;
+      padding: 8px;
+      width: min(520px, 92%);
+      min-height: 80px;
+      max-height: 160px;
+      overflow: auto;
+      text-align: left;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 8px;
+      font-size: 11px;
+      color: #ddd;
+      white-space: pre-wrap;
+      user-select: text;
+      -webkit-user-select: text;
+    }
+    #initLogLabel {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #aaa;
+      text-align: center;
+      letter-spacing: 0.4px;
+    }
 
     /* =========================================
        DIY MODE OVERLAY (Customization Studio inside same page)
@@ -582,11 +624,11 @@
        autoplay
        playsinline
        style="
-         position: fixed;
+         position: absolute;
          top: 0;
          left: 0;
-         width: 100vw;
-         height: 100vh;
+         width: 100%;
+         height: 100%;
          object-fit: cover;
          z-index: 1;
        ">
@@ -594,20 +636,40 @@
 
     <canvas id="renderCanvas"
         style="
-          position: fixed;
+          position: absolute;
           top: 0;
           left: 0;
-          width: 100vw;
-          height: 100vh;
+          width: 100%;
+          height: 100%;
           z-index: 0;
           pointer-events: none;
         ">
 </canvas>
+    <svg id="overlaySvg"
+      viewBox="0 0 220 220"
+      preserveAspectRatio="xMidYMid meet"
+      style="
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 2;
+        pointer-events: none;
+      ">
+      <g id="handRelaxed" class="hand-svg active"></g>
+      <g id="handEgg" class="hand-svg"></g>
+      <g id="handPen" class="hand-svg"></g>
+      <g id="handPhone" class="hand-svg"></g>
+      <g id="handKey" class="hand-svg"></g>
+      <g id="handSalute" class="hand-svg"></g>
+      <text id="overlayHud" x="110" y="210" text-anchor="middle">Model: not loaded</text>
+    </svg>
 <!-- ===== PNG overlay (②) ===== -->
 <img id="handPng"
-     src="fullopen.png"
+     data-src="fullopen.png"
      style="
-       position: fixed;
+       position: absolute;
        top: 25%;
        left: 35%;
 transform: translateX(-50%);
@@ -620,9 +682,10 @@ transform: translateX(-50%);
 
   </div> <!-- ← videoWrapper をここで閉じる -->
 
-
-    
-
+  <div id="resultArea">
+    <div id="result">State: RELAXED</div>
+    <div id="status">Ready. Tap "Start Camera" to initialize.</div>
+  </div>
 
   <div id="controlPanel">
     <!-- NONE removed; Full Relax is base -->
@@ -641,23 +704,52 @@ transform: translateX(-50%);
     <br />
 
     <button id="startCameraBtn">Start Camera</button>
+
+    <div id="initPanel">
+      <button id="initImagesBtn" class="init-btn">Init Images</button>
+      <button id="initCamerasBtn" class="init-btn">Init Cameras</button>
+      <button id="initModelBtn" class="init-btn">Init COCO-SSD</button>
+      <button id="initCustomBtn" class="init-btn">Init Custom Model</button>
+      <button id="initAllBtn" class="init-btn">Init All</button>
+      <button id="copyInitLogBtn" class="init-btn">Copy Log</button>
+      <button id="clearInitLogBtn" class="init-btn">Clear Log</button>
+    </div>
+    <div id="initLogLabel">Init Log</div>
+    <pre id="initLog"></pre>
   </div>
 </div>
 
 <script>
 (() => {
-  // ===== PNG PRELOAD (①) =====
-  const HAND_IMAGES = {
-    fullopen: new Image(),
-    salute: new Image(),
-  };
+  // ===== PNG PRELOAD (lazy) =====
+  let HAND_IMAGES = null;
+  let handImagesReady = false;
 
-  HAND_IMAGES.fullopen.src = 'fullopen.png';
-  HAND_IMAGES.salute.src   = 'salute.png';
+  function initHandImages() {
+    if (handImagesReady) {
+      appendInitLog('Images already initialized.');
+      return;
+    }
+    HAND_IMAGES = {
+      fullopen: new Image(),
+      salute: new Image(),
+    };
 
-  // 読み込み完了ログ（デバッグ用）
-  HAND_IMAGES.fullopen.onload = () => console.log('fullopen.png preloaded');
-  HAND_IMAGES.salute.onload   = () => console.log('salute.png preloaded');
+    HAND_IMAGES.fullopen.onload = () => {
+      console.log('fullopen.png preloaded');
+      appendInitLog('Image loaded: fullopen.png');
+    };
+    HAND_IMAGES.salute.onload = () => {
+      console.log('salute.png preloaded');
+      appendInitLog('Image loaded: salute.png');
+    };
+
+    HAND_IMAGES.fullopen.src = 'fullopen.png';
+    HAND_IMAGES.salute.src   = 'salute.png';
+    handImagesReady = true;
+    initImagesDone = true;
+    appendInitLog('Images init requested.');
+  }
 
   // ======== DOM references ========
   const video        = document.getElementById('video');
@@ -697,6 +789,14 @@ transform: translateX(-50%);
   const lockBtn      = document.getElementById('lockBtn');
   const relaxBtn     = document.getElementById('relaxBtn');
   const startCamBtn  = document.getElementById('startCameraBtn');
+  const initImagesBtn = document.getElementById('initImagesBtn');
+  const initCamerasBtn = document.getElementById('initCamerasBtn');
+  const initModelBtn = document.getElementById('initModelBtn');
+  const initCustomBtn = document.getElementById('initCustomBtn');
+  const initAllBtn = document.getElementById('initAllBtn');
+  const copyInitLogBtn = document.getElementById('copyInitLogBtn');
+  const clearInitLogBtn = document.getElementById('clearInitLogBtn');
+  const initLogEl = document.getElementById('initLog');
 
   const handRelaxed  = document.getElementById('handRelaxed');
   const handEgg      = document.getElementById('handEgg');
@@ -781,6 +881,20 @@ transform: translateX(-50%);
   let lastBestScore = 0;
   let lastObjectsCount = 0;
   let lastDetectError = '';
+
+  // one-time init control
+  let appInitialized = false;
+  let initImagesDone = false;
+  let initCamerasDone = false;
+  let initCustomDone = false;
+
+  function appendInitLog(msg) {
+    if (!initLogEl) return;
+    const now = new Date();
+    const ts = now.toTimeString().slice(0, 8);
+    initLogEl.textContent += `[${ts}] ${msg}\n`;
+    initLogEl.scrollTop = initLogEl.scrollHeight;
+  }
 
   // BASIC visibility
   let showBasic = true;
@@ -1018,6 +1132,9 @@ if (restImg && saluteImg) {
 
     const back = cams.find(d => /back|rear|environment|wide|ultra|tele/i.test(d.label || ''));
     if (back) cameraSelect.value = back.deviceId;
+    if (!cameraSelect.value && cams[0]) {
+      cameraSelect.value = cams[0].deviceId;
+    }
 
     statusEl.textContent = `Cameras ready: ${cams.length}`;
   }
@@ -1412,6 +1529,78 @@ if (restImg && saluteImg) {
     return `COCO-SSD | ${w}x${h} ${fps}fps ${fm} | backend=${tfb}${cpart}`;
   }
 
+  function initImagesStep() {
+    appendInitLog('Init images: start');
+    initHandImages();
+    const handImg = document.getElementById('handPng');
+    if (handImg) {
+      const curSrc = handImg.getAttribute('src');
+      const dataSrc = handImg.getAttribute('data-src');
+      if (!curSrc && dataSrc) {
+        handImg.setAttribute('src', dataSrc);
+        appendInitLog('Image element src set: handPng');
+      }
+    }
+  }
+
+  async function initCamerasStep() {
+    appendInitLog('Init cameras: start');
+    try {
+      await populateCameras();
+      appendInitLog(`Init cameras: selected=${cameraSelect.value || '(none)'}`);
+      initCamerasDone = true;
+      appendInitLog(`Init cameras: done (${camsSnapshot.length} device(s))`);
+    } catch (e) {
+      console.warn(e);
+      const name = e && e.name ? e.name : 'error';
+      const msg = e && e.message ? e.message : '(no message)';
+      appendInitLog(`Init cameras: error (${name}) ${msg}`);
+    }
+  }
+
+  async function initModelStep() {
+    appendInitLog('Init COCO-SSD: start');
+    try {
+      await loadModelIfNeeded();
+      appendInitLog('Init COCO-SSD: loaded');
+    } catch (e) {
+      console.warn(e);
+      appendInitLog('Init COCO-SSD: error');
+    }
+  }
+
+  async function initCustomModelStep() {
+    appendInitLog('Init custom model: start');
+    try {
+      const ok = await loadCustomModelIfAvailable();
+      initCustomDone = true;
+      diyModelStateEl.textContent = localStorage.getItem(CUSTOM_META_KEY) ? 'deployed' : 'none';
+      appendInitLog(ok ? 'Init custom model: loaded' : 'Init custom model: not found');
+    } catch (e) {
+      console.warn(e);
+      appendInitLog('Init custom model: error');
+    }
+  }
+
+  async function initOnDemand() {
+    if (appInitialized) {
+      appendInitLog('Init all: re-run');
+    } else {
+      appInitialized = true;
+    }
+
+    appendInitLog('Init all: start');
+    statusEl.textContent = 'Initializing assets & camera list...';
+    initImagesStep();
+
+    await initCamerasStep();
+    await initCustomModelStep();
+
+    statusEl.textContent = 'Init done. Tap "Start Camera".';
+    appendInitLog('Init all: done');
+    updateHud();
+  }
+
   async function startCamera() {
     try {
       await loadModelIfNeeded();
@@ -1429,27 +1618,38 @@ if (restImg && saluteImg) {
       const deviceId = cameraSelect.value;
       statusEl.textContent = 'Requesting camera...';
 
-      try {
+      if (!deviceId) {
+        appendInitLog('Start camera: no deviceId (using default video=true)');
         stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
-          video: {
-            deviceId: { exact: deviceId },
-            width:  { ideal: 1280 },
-            height: { ideal: 720 },
-            frameRate: { ideal: 30, max: 30 }
-          }
+          video: true
         });
-      } catch (e) {
-        console.warn('deviceId exact failed. fallback to environment:', e);
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: {
-            facingMode: { ideal: 'environment' },
-            width:  { ideal: 1280 },
-            height: { ideal: 720 },
-            frameRate: { ideal: 30, max: 30 }
-          }
-        });
+      } else {
+        try {
+          appendInitLog(`Start camera: getUserMedia exact deviceId=${deviceId.slice(0, 6)}…`);
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: {
+              deviceId: { exact: deviceId },
+              width:  { ideal: 1280 },
+              height: { ideal: 720 },
+              frameRate: { ideal: 30, max: 30 }
+            }
+          });
+        } catch (e) {
+          console.warn('deviceId exact failed. fallback to environment:', e);
+          appendInitLog(`Start camera: exact failed (${e && e.name ? e.name : 'error'})`);
+          appendInitLog('Start camera: getUserMedia fallback facingMode=environment');
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: {
+              facingMode: { ideal: 'environment' },
+              width:  { ideal: 1280 },
+              height: { ideal: 720 },
+              frameRate: { ideal: 30, max: 30 }
+            }
+          });
+        }
       }
 
       video.srcObject = stream;
@@ -1474,6 +1674,7 @@ if (restImg && saluteImg) {
 
     } catch (e) {
       console.error(e);
+      appendInitLog(`Start camera: error (${e && e.name ? e.name : 'error'})`);
       statusEl.textContent = 'Camera not available. Please check permissions / HTTPS / settings.';
       latestHudLine = 'Camera error';
       hudText.textContent = latestHudLine;
@@ -1759,9 +1960,62 @@ ${detSummary}
   });
 
   // ======== Start Camera ========
-  startCamBtn.addEventListener('click', () => {
+  startCamBtn.addEventListener('click', async () => {
+    await initOnDemand();
     startCamera();
     updateHud();
+  });
+
+  initImagesBtn.addEventListener('click', () => {
+    initImagesStep();
+    updateHud();
+  });
+
+  initCamerasBtn.addEventListener('click', async () => {
+    await initCamerasStep();
+    updateHud();
+  });
+
+  initModelBtn.addEventListener('click', async () => {
+    await initModelStep();
+    updateHud();
+  });
+
+  initCustomBtn.addEventListener('click', async () => {
+    await initCustomModelStep();
+    updateHud();
+  });
+
+  initAllBtn.addEventListener('click', async () => {
+    await initOnDemand();
+    await initModelStep();
+    updateHud();
+  });
+
+  copyInitLogBtn.addEventListener('click', async () => {
+    if (!initLogEl) return;
+    const text = initLogEl.textContent || '';
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        statusEl.textContent = 'Init Log copied to clipboard.';
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        statusEl.textContent = 'Init Log copied (fallback).';
+      }
+    } catch (e) {
+      console.warn(e);
+      statusEl.textContent = 'Copy failed (browser restriction).';
+    }
+  });
+
+  clearInitLogBtn.addEventListener('click', () => {
+    if (initLogEl) initLogEl.textContent = '';
   });
 
   // ======== HUD buttons ========
@@ -2039,15 +2293,10 @@ ${detSummary}
     showBasic = (basicSelect.value === 'on');
     useCustomModel = (useCustomSelect.value === 'on');
 
-    try { await populateCameras(); } catch (e) { console.warn(e); }
-
     // Default HUD OFF (menu selectable)
     setHudVisible(false);
     updateHud();
-
-    // Try auto-load custom model silently (doesn't enable)
-    await loadCustomModelIfAvailable().catch(()=>{});
-    diyModelStateEl.textContent = localStorage.getItem(CUSTOM_META_KEY) ? 'deployed' : 'none';
+    statusEl.textContent = 'Ready. Tap "Start Camera" to initialize.';
   });
 
 })();// ===== DEMO ONLY: button -> PNG switch =====
