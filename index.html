@@ -898,7 +898,19 @@ transform: translateX(-50%);
   let penHoldStart = 0;
   let penAutoActive = false;
   let detectPausedByPen = false;
+  let keyAutoActive = false;
+  let detectPausedByKey = false;
   let penDisplayTimer = 0;
+  const penDisplayMs = 2000;
+  const penTriggerMs = 1000;
+  const penGraceMs = 700;
+  let penLastSeen = 0;
+  const penWindowSize = 7;
+  const penWindowNeeded = 2;
+  let penWindow = [];
+  const keyWindowSize = 7;
+  const keyWindowNeeded = 1;
+  let keyWindow = [];
 
   function appendInitLog(msg) {
     if (!initLogEl) return;
@@ -1022,7 +1034,13 @@ transform: translateX(-50%);
     penDisplayTimer = setTimeout(() => {
       penAutoActive = false;
       setHandPngOpacity(handPngBaseOpacity);
-    }, 2000);
+    }, penDisplayMs);
+  }
+
+  function triggerKeyAuto(now) {
+    applyHandPngConfig(handPngMap.simKey);
+    keyAutoActive = true;
+    detectPausedByKey = true;
   }
 
   // ======== Helper: hand display ========
@@ -1415,6 +1433,12 @@ if (restImg && saluteImg) {
         return;
       }
 
+      if (detectPausedByKey) {
+        latestHudLine = 'Key detected: overlay shown (paused until relax)';
+        setTimeout(loop, 200);
+        return;
+      }
+
       if (now < detectPauseUntil) {
         latestHudLine = 'Phone detected: overlay shown (detection paused)';
         setTimeout(loop, 200);
@@ -1522,6 +1546,9 @@ if (restImg && saluteImg) {
           }
         }
 
+        const penSeen = objects.some(o => o.group === 'pen');
+        const keySeen = objects.some(o => o.group === 'key');
+
         lastDominant = dominant;
         lastBestScore = bestScore;
         lastObjectsCount = objects.length;
@@ -1539,17 +1566,64 @@ if (restImg && saluteImg) {
           phoneHoldStart = 0;
         }
 
-        if (dominant === 'pen') {
-          if (!penHoldStart) penHoldStart = now;
-          if (!penAutoActive && (now - penHoldStart) >= 1000) {
+        keyWindow.push(keySeen);
+        if (keyWindow.length > keyWindowSize) keyWindow.shift();
+        if (
+          !keyAutoActive &&
+          keyWindow.filter(Boolean).length >= keyWindowNeeded
+        ) {
+          const count = keyWindow.filter(Boolean).length;
+          triggerKeyAuto(now);
+          appendInitLog(`Key window: trigger (${count}/${keyWindowSize})`);
+          keyWindow = [];
+          statusEl.textContent = 'KEY detected: overlay ON (paused until relax).';
+          latestHudLine = 'Key detected: overlay ON (paused until relax)';
+          setTimeout(loop, 200);
+          return;
+        }
+
+        penWindow.push(penSeen);
+        if (penWindow.length > penWindowSize) penWindow.shift();
+        if (
+          !penAutoActive &&
+          penWindow.length === penWindowSize &&
+          penWindow.filter(Boolean).length >= penWindowNeeded
+        ) {
+          const count = penWindow.filter(Boolean).length;
+          triggerPenAuto(now);
+          appendInitLog(`Pen window: trigger (${count}/${penWindowSize})`);
+          penHoldStart = 0;
+          penLastSeen = 0;
+          penWindow = [];
+          statusEl.textContent = 'PEN detected: overlay ON (paused until relax).';
+          latestHudLine = 'Pen detected: overlay ON (paused until relax)';
+          setTimeout(loop, 200);
+          return;
+        }
+
+        if (penSeen) {
+          if (!penHoldStart) {
+            penHoldStart = now;
+            appendInitLog('Pen hold: start');
+          }
+          penLastSeen = now;
+          if (!penAutoActive && (now - penHoldStart) >= penTriggerMs) {
+            const elapsedMs = Math.round(now - penHoldStart);
             triggerPenAuto(now);
+            appendInitLog(`Pen hold: trigger (>=${penTriggerMs}ms, grace=${penGraceMs}ms, elapsed=${elapsedMs}ms)`);
             statusEl.textContent = 'PEN detected: overlay ON (paused until relax).';
             latestHudLine = 'Pen detected: overlay ON (paused until relax)';
             setTimeout(loop, 200);
             return;
           }
-        } else {
-          penHoldStart = 0;
+        } else if (penHoldStart) {
+          const sinceLast = now - (penLastSeen || penHoldStart);
+          if (sinceLast > penGraceMs) {
+            const elapsedMs = Math.round(now - penHoldStart);
+            appendInitLog(`Pen hold: reset (gap>${penGraceMs}ms, elapsed=${elapsedMs}ms)`);
+            penHoldStart = 0;
+            penLastSeen = 0;
+          }
         }
 
 
@@ -2066,8 +2140,11 @@ ${detSummary}
     freezeGroup = 'none';
     demoUntil = 0;
     detectPausedByPen = false;
+    detectPausedByKey = false;
     penHoldStart = 0;
     penAutoActive = false;
+    keyAutoActive = false;
+    keyWindow = [];
     if (penDisplayTimer) {
       clearTimeout(penDisplayTimer);
       penDisplayTimer = 0;
