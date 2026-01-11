@@ -887,6 +887,8 @@ transform: translateX(-50%);
   let initImagesDone = false;
   let initCamerasDone = false;
   let initCustomDone = false;
+  let initLogEnabled = true;
+  let diyCaptureInFlight = false;
 
   // hand PNG overlay state
   const handPngEl = document.getElementById('handPng');
@@ -900,6 +902,8 @@ transform: translateX(-50%);
   let detectPausedByPen = false;
   let keyAutoActive = false;
   let detectPausedByKey = false;
+  let eggHoldStart = 0;
+  let eggAutoActive = false;
   let penDisplayTimer = 0;
   const penDisplayMs = 2000;
   const penTriggerMs = 1000;
@@ -913,6 +917,7 @@ transform: translateX(-50%);
   let keyWindow = [];
 
   function appendInitLog(msg) {
+    if (!initLogEnabled) return;
     if (!initLogEl) return;
     const now = new Date();
     const ts = now.toTimeString().slice(0, 8);
@@ -1023,6 +1028,20 @@ transform: translateX(-50%);
     phoneHoldStart = 0;
     detectPauseUntil = now + 1000;
     setTimeout(() => { phoneAutoActive = false; }, 1000);
+  }
+
+  function triggerEggAuto(now) {
+    applyHandPngConfig({
+      src: 'egg0.png',
+      width: '90%',
+      left: '40%',
+      top: '25%',
+      opacity: handPngBaseOpacity
+    });
+    eggAutoActive = true;
+    eggHoldStart = 0;
+    detectPauseUntil = now + 1000;
+    setTimeout(() => { eggAutoActive = false; }, 1000);
   }
 
   function triggerPenAuto(now) {
@@ -1321,10 +1340,21 @@ if (restImg && saluteImg) {
 
   // ===== Custom Model helpers =====
   async function loadMobileNetIfNeeded() {
-    if (mobileNet) return;
+    if (mobileNet) {
+      appendInitLog('MobileNet: already loaded');
+      return;
+    }
+    appendInitLog('MobileNet: load start');
     diyLog('Loading MobileNet...');
-    mobileNet = await mobilenet.load({version:2, alpha:1.0});
-    diyLog('MobileNet loaded.');
+    try {
+      mobileNet = await mobilenet.load({version:2, alpha:1.0});
+      diyLog('MobileNet loaded.');
+      appendInitLog('MobileNet: load done');
+    } catch (e) {
+      console.warn('MobileNet load failed:', e);
+      appendInitLog('MobileNet: load failed');
+      throw e;
+    }
   }
 
   function getTfBackendSafe() {
@@ -1363,10 +1393,35 @@ if (restImg && saluteImg) {
 
     return tf.tidy(() => {
       const img = tf.browser.fromPixels(video);
-      const crop = img.slice([sy, sx, 0], [size, size, 3]);
+      const crop = tf.slice(img, [sy, sx, 0], [size, size, 3]);
       const resized = tf.image.resizeBilinear(crop, [224, 224]);
-      const normalized = resized.toFloat().div(255);
-      return normalized.expandDims(0); // [1,224,224,3]
+      const normalized = tf.div(tf.cast(resized, 'float32'), 255);
+      return tf.expandDims(normalized, 0); // [1,224,224,3]
+    });
+  }
+
+  function waitForVideoReady(timeoutMs = 2000) {
+    if (video.videoWidth && video.readyState >= 2) return Promise.resolve(true);
+    return new Promise(resolve => {
+      let done = false;
+      const onReady = () => {
+        if (done) return;
+        done = true;
+        cleanup();
+        resolve(true);
+      };
+      const cleanup = () => {
+        video.removeEventListener('loadeddata', onReady);
+        video.removeEventListener('canplay', onReady);
+      };
+      video.addEventListener('loadeddata', onReady, { once: true });
+      video.addEventListener('canplay', onReady, { once: true });
+      setTimeout(() => {
+        if (done) return;
+        done = true;
+        cleanup();
+        resolve(false);
+      }, timeoutMs);
     });
   }
 
@@ -1379,7 +1434,7 @@ if (restImg && saluteImg) {
     await loadMobileNetIfNeeded();
 
     const x224 = frameToTensor224();
-    const emb = tf.tidy(() => mobileNet.infer(x224, true).squeeze());
+    const emb = tf.tidy(() => tf.squeeze(mobileNet.infer(x224, true)));
     x224.dispose();
 
     const dim = emb.shape[0];
@@ -1564,6 +1619,19 @@ if (restImg && saluteImg) {
           }
         } else {
           phoneHoldStart = 0;
+        }
+
+        if (dominant === 'egg') {
+          if (!eggHoldStart) eggHoldStart = now;
+          if (!eggAutoActive && (now - eggHoldStart) >= 200) {
+            triggerEggAuto(now);
+            statusEl.textContent = 'EGG detected: overlay ON (paused 1s).';
+            latestHudLine = 'Egg detected: overlay ON (paused 1s)';
+            setTimeout(loop, 200);
+            return;
+          }
+        } else {
+          eggHoldStart = 0;
         }
 
         keyWindow.push(keySeen);
@@ -2144,6 +2212,8 @@ ${detSummary}
     penHoldStart = 0;
     penAutoActive = false;
     keyAutoActive = false;
+    eggHoldStart = 0;
+    eggAutoActive = false;
     keyWindow = [];
     if (penDisplayTimer) {
       clearTimeout(penDisplayTimer);
@@ -2227,7 +2297,15 @@ ${detSummary}
   });
 
   clearInitLogBtn.addEventListener('click', () => {
+    if (!initLogEnabled) {
+      initLogEnabled = true;
+      clearInitLogBtn.textContent = 'Clear Log';
+      appendInitLog('Init log resumed.');
+      return;
+    }
     if (initLogEl) initLogEl.textContent = '';
+    initLogEnabled = false;
+    clearInitLogBtn.textContent = 'Init Log';
   });
 
   // ======== HUD buttons ========
@@ -2261,9 +2339,12 @@ ${detSummary}
     setBodyDiy(on);
     if (on) {
       playJingle('enter');
+      latestObjects = [];
+      appendInitLog('DIY enter: fcAI paused (camera continues).');
       statusEl.textContent = 'DIY Mode: fcAI paused (camera continues).';
     } else {
       playJingle('exit');
+      appendInitLog('DIY exit: fcAI resumed.');
       statusEl.textContent = 'Returned to fcAI mode.';
     }
     updateHud();
@@ -2306,32 +2387,62 @@ ${detSummary}
   }
 
   async function diyCapture() {
-    if (!video.videoWidth || video.readyState < 2) {
-      diyLog('Camera not ready. Start camera first.');
+    if (diyCaptureInFlight) {
+      diyLog('Capture busy. Please wait.');
+      appendInitLog('DIY capture: busy');
       return;
     }
+    diyCaptureInFlight = true;
+    appendInitLog(`DIY capture: start (readyState=${video.readyState}, size=${video.videoWidth}x${video.videoHeight})`);
+    try {
+      if (!video.videoWidth || video.readyState < 2) {
+        appendInitLog('DIY capture: waiting for video ready...');
+        const ok = await waitForVideoReady(2500);
+        appendInitLog(`DIY capture: waitForVideoReady=${ok ? 'ok' : 'timeout'}`);
+        if (!ok || !video.videoWidth || video.readyState < 2) {
+          diyLog('Camera not ready. Start camera first.');
+          appendInitLog(`DIY capture: camera not ready (readyState=${video.readyState}, size=${video.videoWidth}x${video.videoHeight})`);
+          return;
+        }
+      }
 
-    await loadMobileNetIfNeeded();
+      const trackInfo = getTrackInfo();
+      if (trackInfo) {
+        appendInitLog(`DIY capture: track=${trackInfo.label}`);
+      } else {
+        appendInitLog('DIY capture: no active track');
+      }
 
-    const label = diyLabelSelect.value;
-    const y = diyLabelToIndex.get(label);
-    const split = diySplitSelect.value;
+      await loadMobileNetIfNeeded();
+      appendInitLog('DIY capture: MobileNet ready');
 
-    const x224 = frameToTensor224();
-    const emb = tf.tidy(() => mobileNet.infer(x224, true).squeeze());
-    x224.dispose();
+      const label = diyLabelSelect.value;
+      const y = diyLabelToIndex.get(label);
+      const split = diySplitSelect.value;
 
-    const arr = Array.from(await emb.data());
-    emb.dispose();
+      const x224 = frameToTensor224();
+      const emb = tf.tidy(() => tf.squeeze(mobileNet.infer(x224, true)));
+      x224.dispose();
 
-    if (split === 'train') {
-      Xtrain.push(arr); Ytrain.push(y);
-    } else {
-      Xtest.push(arr); Ytest.push(y);
+      const arr = Array.from(await emb.data());
+      emb.dispose();
+
+      if (split === 'train') {
+        Xtrain.push(arr); Ytrain.push(y);
+      } else {
+        Xtest.push(arr); Ytest.push(y);
+      }
+
+      diyLog(`Captured ${split.toUpperCase()}: ${label} (train=${Xtrain.length}, test=${Xtest.length})`);
+      appendInitLog(`DIY capture: ${split.toUpperCase()} ${label} (train=${Xtrain.length}, test=${Xtest.length})`);
+      diyRenderCounts();
+    } catch (e) {
+      console.warn('DIY capture failed:', e);
+      diyLog('Capture failed. Check console/logs.');
+      appendInitLog(`DIY capture: failed (${e && e.message ? e.message : 'error'})`);
+    } finally {
+      diyCaptureInFlight = false;
     }
-
-    diyLog(`Captured ${split.toUpperCase()}: ${label} (train=${Xtrain.length}, test=${Xtest.length})`);
-    diyRenderCounts();
   }
 
   function diyClearData() {
@@ -2339,6 +2450,7 @@ ${detSummary}
     Xtest  = []; Ytest  = [];
     diyCMWrap.innerHTML = '';
     diyLog('DIY data cleared (in-memory).');
+    appendInitLog('DIY data cleared (in-memory).');
     diyModelStateEl.textContent = customClassifier ? 'exists (deployed)' : 'none';
     diyRenderCounts();
   }
@@ -2362,6 +2474,7 @@ ${detSummary}
   async function diyTrain() {
     if (Xtrain.length < Math.max(12, diyLabels.length * 10)) {
       diyLog('Train data too small. Capture more (≈ 25/class recommended).');
+      appendInitLog('DIY train: data too small');
       return;
     }
     await diyBackendPreferWebGL();
@@ -2374,6 +2487,7 @@ ${detSummary}
     const m = diyBuildClassifier(numClasses, dim);
 
     diyLog('Training (15 epochs)...');
+    appendInitLog(`DIY train: start (samples=${Xtrain.length}, classes=${numClasses})`);
     diyModelStateEl.textContent = 'training';
 
     const xs = tf.tensor2d(Xtrain, [Xtrain.length, dim]);
@@ -2399,16 +2513,19 @@ ${detSummary}
 
     diyModelStateEl.textContent = 'trained (not deployed)';
     diyLog('Training done. Evaluate, then Deploy if OK.');
+    appendInitLog('DIY train: done');
     updateHud();
   }
 
   async function diyEvaluate() {
     if (!customClassifier) {
       diyLog('No trained model. Train first.');
+      appendInitLog('DIY eval: no trained model');
       return;
     }
     if (Xtest.length < Math.max(10, diyLabels.length * 4)) {
       diyLog('Test data too small. Capture TEST more.');
+      appendInitLog('DIY eval: test data too small');
       return;
     }
 
@@ -2430,14 +2547,17 @@ ${detSummary}
     const acc = correct / Ytest.length;
 
     diyLog(`EVAL: test=${Ytest.length}, accuracy=${(acc*100).toFixed(1)}% (If unstable: capture more / reduce background variety).`);
+    appendInitLog(`DIY eval: test=${Ytest.length}, acc=${(acc*100).toFixed(1)}%`);
   }
 
   async function diyDeploySave() {
     if (!customClassifier) {
       diyLog('No model to deploy. Train first.');
+      appendInitLog('DIY deploy: no model');
       return;
     }
     try {
+      appendInitLog('DIY deploy: start');
       await customClassifier.save(CUSTOM_MODEL_KEY);
       localStorage.setItem(CUSTOM_META_KEY, JSON.stringify({
         version: 1,
@@ -2447,16 +2567,19 @@ ${detSummary}
       }));
       diyModelStateEl.textContent = 'deployed';
       diyLog('DEPLOYED. You can now enable “Use Custom Model: ON” in menu.');
+      appendInitLog('DIY deploy: done');
       updateHud();
     } catch (e) {
       console.warn(e);
       diyLog('Deploy failed (storage restriction). Try again or clear site storage.');
+      appendInitLog('DIY deploy: failed');
     }
   }
 
   // ===== DIY enter / exit / approve =====
   diyEnterBtn.addEventListener('click', async () => {
     // enter diy, keep camera running, pause fcAI changes
+    appendInitLog('DIY enter: requested');
     await loadMobileNetIfNeeded().catch(()=>{});
     await diyBackendPreferWebGL().catch(()=>{});
     diyPresetDefault();
