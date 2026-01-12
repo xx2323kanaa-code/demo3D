@@ -1031,7 +1031,13 @@ transform: translateX(-50%);
   }
 
   function triggerEggAuto(now) {
-    applyHandPngConfig(handPngMap.simEgg);
+    // EGGだけ命名ルールが逆のため、認識時は egg0 を表示する
+    applyHandPngConfig({
+      src: 'egg0.png',
+      width: '90%',
+      left: '40%',
+      top: '25%'
+    });
     eggAutoActive = true;
     eggHoldStart = 0;
     detectPauseUntil = now + 1000;
@@ -2228,6 +2234,23 @@ ${detSummary}
       lockBtn.textContent = 'Lock (ON)';
       statusEl.textContent = 'Mini-Open: key image updated.';
       latestHudLine = 'Mini-Open (key image swap)';
+      updateHud();
+      return;
+    }
+    if (currentGroup === 'egg') {
+      // Mini-Open時は例外的に egg1 を表示（EGGのみ特殊ルール）
+      lockActive = true;
+      activateHand('egg');
+      applyHandPngConfig({
+        src: 'egg1.png',
+        width: handPngEl?.style.width || '90%',
+        left: handPngEl?.style.left || '40%',
+        top: handPngEl?.style.top || '25%',
+        opacity: 1
+      });
+      lockBtn.textContent = 'Lock (ON)';
+      statusEl.textContent = 'Mini-Open: egg image updated.';
+      latestHudLine = 'Mini-Open (egg image swap)';
       updateHud();
       return;
     }
