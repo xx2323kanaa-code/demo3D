@@ -740,12 +740,12 @@ transform: translateX(-50%);
       appendInitLog('Image loaded: fullopen.png');
     };
     HAND_IMAGES.salute.onload = () => {
-      console.log('salute.png preloaded');
-      appendInitLog('Image loaded: salute.png');
+      console.log('salute0.png preloaded');
+      appendInitLog('Image loaded: salute0.png');
     };
 
     HAND_IMAGES.fullopen.src = 'fullopen.png';
-    HAND_IMAGES.salute.src   = 'salute.png';
+    HAND_IMAGES.salute.src   = 'salute0.png';
     handImagesReady = true;
     initImagesDone = true;
     appendInitLog('Images init requested.');
@@ -999,11 +999,11 @@ transform: translateX(-50%);
   }
 
   const handPngMap = {
-    simEgg:   { src: 'egg0.png', width: '90%', left: '40%' },
+    simEgg:   { src: 'egg1.png', width: '90%', left: '40%' },
     simPen:   { src: 'pen1.png', width: '60%', left: '38%' },
     simPhone: { src: 'phone1.png', width: '90%', left: '40%', top: '20%' },
-    simKey:   { src: 'coin0.png', width: '60%', left: '35%' },
-    simSalute:{ src: 'salute.png', width: '60%', left: '35%' }
+    simKey:   { src: 'key1.png', width: '60%', left: '35%' },
+    simSalute:{ src: 'salute0.png', width: '60%', left: '35%' }
   };
   window.handPngMap = handPngMap;
 
@@ -1031,13 +1031,7 @@ transform: translateX(-50%);
   }
 
   function triggerEggAuto(now) {
-    applyHandPngConfig({
-      src: 'egg0.png',
-      width: '90%',
-      left: '40%',
-      top: '25%',
-      opacity: handPngBaseOpacity
-    });
+    applyHandPngConfig(handPngMap.simEgg);
     eggAutoActive = true;
     eggHoldStart = 0;
     detectPauseUntil = now + 1000;
@@ -2139,18 +2133,42 @@ ${detSummary}
   // ======== Buttons: Lock / Mini-Open / Full Relax ========
   lockBtn.addEventListener('click', () => {
     lockActive = true;
+    if (currentGroup === 'salute') {
+      activateHand('salute');
+      lockBtn.textContent = 'Lock (ON)';
+      statusEl.textContent = 'SALUTE LOCK. Detection paused.';
+      latestHudLine = 'Locked by user (no detection)';
+      updateHud();
+      return;
+    }
     clearLockedVisual();
     if (currentGroup === 'pen') {
       applyHandPngConfig({
-        src: 'pen0.png',
+        src: 'pen2.png',
         width: handPngEl?.style.width || '60%',
         left: handPngEl?.style.left || '38%',
         top: handPngEl?.style.top || '25%',
         opacity: 1
       });
+    } else if (currentGroup === 'phone') {
+      applyHandPngConfig({
+        src: 'phone2.png',
+        width: handPngEl?.style.width || '90%',
+        left: handPngEl?.style.left || '40%',
+        top: handPngEl?.style.top || '20%',
+        opacity: 1
+      });
+    } else if (currentGroup === 'egg') {
+      applyHandPngConfig({
+        src: 'egg2.png',
+        width: handPngEl?.style.width || '90%',
+        left: handPngEl?.style.left || '40%',
+        top: handPngEl?.style.top || '25%',
+        opacity: 1
+      });
     } else if (currentGroup === 'key') {
       applyHandPngConfig({
-        src: 'key1.png',
+        src: 'key2.png',
         width: handPngEl?.style.width || '60%',
         left: handPngEl?.style.left || '35%',
         top: handPngEl?.style.top || '25%',
@@ -2188,6 +2206,31 @@ ${detSummary}
   });
 
   miniOpenBtn.addEventListener('click', () => {
+    if (currentGroup === 'salute') {
+      lockActive = true;
+      activateHand('salute');
+      lockBtn.textContent = 'Lock (ON)';
+      statusEl.textContent = 'SALUTE LOCK. Detection paused.';
+      latestHudLine = 'Locked by user (no detection)';
+      updateHud();
+      return;
+    }
+    if (currentGroup === 'key') {
+      lockActive = true;
+      activateHand('key');
+      applyHandPngConfig({
+        src: 'key0.png',
+        width: handPngEl?.style.width || '60%',
+        left: handPngEl?.style.left || '35%',
+        top: handPngEl?.style.top || '25%',
+        opacity: 1
+      });
+      lockBtn.textContent = 'Lock (ON)';
+      statusEl.textContent = 'Mini-Open: key image updated.';
+      latestHudLine = 'Mini-Open (key image swap)';
+      updateHud();
+      return;
+    }
     if (!lockActive) {
       statusEl.textContent = 'Mini-Open: no lock active.';
       return;
@@ -2640,11 +2683,11 @@ ${detSummary}
   if (!handImg) return;
 
   const map = window.handPngMap || {
-    simEgg:   { src: 'egg0.png', width: '90%', left: '40%' },
+    simEgg:   { src: 'egg1.png', width: '90%', left: '40%' },
     simPen:   { src: 'pen1.png', width: '60%', left: '38%' },
     simPhone: { src: 'phone1.png', width: '90%', left: '40%', top: '20%' },
     simKey:   { src: 'key1.png', width: '60%', left: '35%' },
-    simSalute:{ src: 'salute.png', width: '60%', left: '35%' }
+    simSalute:{ src: 'salute0.png', width: '60%', left: '35%' }
   };
 
   Object.keys(map).forEach(btnId => {
@@ -2668,3 +2711,51 @@ ${detSummary}
 
 </body>
 </html>
+    if (currentGroup === 'phone') {
+      lockActive = true;
+      activateHand('phone');
+      applyHandPngConfig({
+        src: 'phone0.png',
+        width: handPngEl?.style.width || '90%',
+        left: handPngEl?.style.left || '40%',
+        top: handPngEl?.style.top || '20%',
+        opacity: 1
+      });
+      lockBtn.textContent = 'Lock (ON)';
+      statusEl.textContent = 'Mini-Open: phone image updated.';
+      latestHudLine = 'Mini-Open (phone image swap)';
+      updateHud();
+      return;
+    }
+    if (currentGroup === 'egg') {
+      lockActive = true;
+      activateHand('egg');
+      applyHandPngConfig({
+        src: 'egg0.png',
+        width: handPngEl?.style.width || '90%',
+        left: handPngEl?.style.left || '40%',
+        top: handPngEl?.style.top || '25%',
+        opacity: 1
+      });
+      lockBtn.textContent = 'Lock (ON)';
+      statusEl.textContent = 'Mini-Open: egg image updated.';
+      latestHudLine = 'Mini-Open (egg image swap)';
+      updateHud();
+      return;
+    }
+    if (currentGroup === 'pen') {
+      lockActive = true;
+      activateHand('pen');
+      applyHandPngConfig({
+        src: 'pen0.png',
+        width: handPngEl?.style.width || '60%',
+        left: handPngEl?.style.left || '38%',
+        top: handPngEl?.style.top || '25%',
+        opacity: 1
+      });
+      lockBtn.textContent = 'Lock (ON)';
+      statusEl.textContent = 'Mini-Open: pen image updated.';
+      latestHudLine = 'Mini-Open (pen image swap)';
+      updateHud();
+      return;
+    }
