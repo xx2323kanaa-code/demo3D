@@ -165,6 +165,28 @@
       z-index: 3;
       pointer-events: none;
     }
+    #endCard {
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      display: none;
+      background: #fff;
+      color: #111;
+      padding: 14px;
+      box-sizing: border-box;
+      overflow: auto;
+      font-family: "Helvetica Neue", Arial, sans-serif;
+    }
+    #endCard h3 {
+      margin: 0 0 8px;
+      font-size: 14px;
+      letter-spacing: 0.2px;
+    }
+    #endCard .end-copy {
+      font-size: 13px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
 
     /* =========================================
        DEBUG HUD (Head-Up Display)
@@ -318,6 +340,10 @@
       border: none;
       border-radius: 20px;
       cursor: pointer;
+    }
+    #startCameraBtn.is-on {
+      background: #c33;
+      color: #fff;
     }
     #initPanel {
       margin-top: 10px;
@@ -577,8 +603,8 @@
       <div class="menu-section">
         <h3>Show BASIC Boxes</h3>
         <select id="basicSelect">
-          <option value="off">OFF</option>
-          <option value="on" selected>ON</option>
+          <option value="off" selected>OFF</option>
+          <option value="on">ON</option>
         </select>
         <span>Turn OFF to hide “BASIC” (generic objects) boxes/labels.</span>
       </div>
@@ -597,21 +623,21 @@
 
       <div class="menu-section">
         <h3>Max Results (1–3)</h3>
-        <input type="range" id="maxResults" min="1" max="3" value="1">
-        <span id="maxResultsValue">1</span>
+        <input type="range" id="maxResults" min="1" max="3" value="3">
+        <span id="maxResultsValue">3</span>
       </div>
 
       <div class="menu-section">
         <h3>Score Threshold</h3>
-        <input type="range" id="scoreSlider" min="2" max="30" value="15">
-        <span id="scoreValue">15 %</span>
+        <input type="range" id="scoreSlider" min="2" max="30" value="2">
+        <span id="scoreValue">2 %</span>
       </div>
 
       <div class="menu-section">
         <h3>Freeze Duration</h3>
-        <input type="range" id="freezeSlider" min="2" max="10" value="3">
-        <span id="freezeValue">3 sec</span>
-        <span>Note: minimum freeze is always 2 sec for demo readability.</span>
+        <input type="range" id="freezeSlider" min="0.1" max="3" value="0.5" step="0.1">
+        <span id="freezeValue">0.5 sec</span>
+        <span>Range: 0.1–3 sec.</span>
       </div>
 
     </div>
@@ -665,6 +691,10 @@
       <g id="handSalute" class="hand-svg"></g>
       <text id="overlayHud" x="110" y="210" text-anchor="middle">Model: not loaded</text>
     </svg>
+    <div id="endCard" aria-live="polite">
+      <h3>End Camera</h3>
+      <div id="endCardBody" class="end-copy"></div>
+    </div>
 <!-- ===== PNG overlay (②) ===== -->
 <img id="handPng"
      data-src="fullopen.png"
@@ -834,6 +864,8 @@ transform: translateX(-50%);
   const diyLogEl = document.getElementById('diyLog');
   const diyCMWrap = document.getElementById('diyCMWrap');
   const diyCountsEl = document.getElementById('diyCounts');
+  const endCard = document.getElementById('endCard');
+  const endCardBody = document.getElementById('endCardBody');
 
   // ======== State ========
   let model = null;
@@ -841,6 +873,7 @@ transform: translateX(-50%);
 
   let detectRunning = false;
   let drawRunning = false;
+  let cameraActive = false;
 
   let lockActive = false;
   let currentGroup = 'none'; // 'none' | 'egg' | 'pen' | 'phone' | 'key' | 'salute'
@@ -892,11 +925,9 @@ transform: translateX(-50%);
 
   // hand PNG overlay state
   const handPngEl = document.getElementById('handPng');
-  const handPngBaseOpacity = 0.9;
   let phoneHoldStart = 0;
   let phoneAutoActive = false;
   let detectPauseUntil = 0;
-  let relaxRestoreTimer = 0;
   let penHoldStart = 0;
   let penAutoActive = false;
   let detectPausedByPen = false;
@@ -923,6 +954,29 @@ transform: translateX(-50%);
     const ts = now.toTimeString().slice(0, 8);
     initLogEl.textContent += `[${ts}] ${msg}\n`;
     initLogEl.scrollTop = initLogEl.scrollHeight;
+  }
+
+  const endCardMessage =
+    '🇯🇵 認識のデモに参加してくださってありがとうございます。\n\n' +
+    '🇺🇸 Thank you for joining the recognition demo!\n\n' +
+    '🇺🇦 Дякуємо, що приєдналися до демонстрації розпізнавання!';
+
+  function showEndCard() {
+    if (!endCard || !endCardBody) return;
+    endCardBody.textContent = endCardMessage;
+    endCard.scrollTop = 0;
+    endCard.style.display = 'block';
+  }
+
+  function hideEndCard() {
+    if (!endCard) return;
+    endCard.style.display = 'none';
+  }
+
+  function setCameraButtonState(on) {
+    cameraActive = on;
+    startCamBtn.textContent = on ? 'End Camera' : 'Start Camera';
+    startCamBtn.classList.toggle('is-on', on);
   }
 
   // BASIC visibility
@@ -991,11 +1045,11 @@ transform: translateX(-50%);
     return parseInt(maxResultsInput.value, 10) || 1;
   }
   function getScoreThreshold() {
-    return (parseInt(scoreSlider.value, 10) || 15) / 100; // 0.02–0.30
+    return (parseInt(scoreSlider.value, 10) || 2) / 100; // 0.02–0.30
   }
   function getFreezeDurationMs() {
-    const userMs = (parseInt(freezeSlider.value, 10) || 3) * 1000;
-    return Math.max(2000, userMs); // ALWAYS >= 2s (for demo readability)
+    const userMs = (parseFloat(freezeSlider.value) || 0.5) * 1000;
+    return Math.max(100, userMs);
   }
 
   const handPngMap = {
@@ -1013,13 +1067,7 @@ transform: translateX(-50%);
     handPngEl.style.width = cfg.width || '60%';
     handPngEl.style.left = cfg.left || '35%';
     handPngEl.style.top = cfg.top || '25%';
-    handPngEl.style.opacity = String(cfg.opacity ?? handPngBaseOpacity);
     handPngEl.style.display = 'block';
-  }
-
-  function setHandPngOpacity(value) {
-    if (!handPngEl) return;
-    handPngEl.style.opacity = String(value);
   }
 
   function triggerPhoneAuto(now) {
@@ -1052,7 +1100,6 @@ transform: translateX(-50%);
     if (penDisplayTimer) clearTimeout(penDisplayTimer);
     penDisplayTimer = setTimeout(() => {
       penAutoActive = false;
-      setHandPngOpacity(handPngBaseOpacity);
     }, penDisplayMs);
   }
 
@@ -1076,6 +1123,10 @@ function activateHand(group) {
 
   target.classList.add('active');
   currentGroup = group;
+
+  if (group === 'salute') {
+    applyHandPngConfig(handPngMap.simSalute);
+  }
 
 // ===== PNG overlay control =====
 const restImg   = document.getElementById("handRestImg");
@@ -1898,6 +1949,7 @@ if (restImg && saluteImg) {
         hudText.textContent = latestHudLine;
 
         statusEl.textContent = 'Camera started. Show objects in front of the camera.';
+        setCameraButtonState(true);
 
         if (!drawRunning) {
           drawRunning = true;
@@ -1915,7 +1967,25 @@ if (restImg && saluteImg) {
       statusEl.textContent = 'Camera not available. Please check permissions / HTTPS / settings.';
       latestHudLine = 'Camera error';
       hudText.textContent = latestHudLine;
+      setCameraButtonState(false);
     }
+  }
+
+  function stopCamera() {
+    detectRunning = false;
+    lockActive = false;
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+    video.srcObject = null;
+    statusEl.textContent = 'Camera stopped.';
+    latestHudLine = 'Camera stopped';
+    hudText.textContent = latestHudLine;
+    setCameraButtonState(false);
+    renderCtx.clearRect(0, 0, renderCanvas.width, renderCanvas.height);
+    showEndCard();
+    updateHud();
   }
 
   // ======== DEBUG HUD: build/update ========
@@ -2102,6 +2172,12 @@ ${detSummary}
 
   simEggBtn.addEventListener('click', () => {
     activateHand('egg');
+    applyHandPngConfig({
+      src: 'egg0.png',
+      width: '90%',
+      left: '40%',
+      top: '25%'
+    });
     resultEl.textContent = 'State: EGG (simulation)';
     statusEl.textContent = 'Simulation: EGG (fragile small items)';
     demoFreeze(2000);
@@ -2109,6 +2185,7 @@ ${detSummary}
   });
   simPenBtn.addEventListener('click', () => {
     activateHand('pen');
+    applyHandPngConfig(handPngMap.simPen);
     resultEl.textContent = 'State: PEN (simulation)';
     statusEl.textContent = 'Simulation: Pen grip';
     demoFreeze(2000);
@@ -2116,6 +2193,7 @@ ${detSummary}
   });
   simPhoneBtn.addEventListener('click', () => {
     activateHand('phone');
+    applyHandPngConfig(handPngMap.simPhone);
     resultEl.textContent = 'State: PHONE (simulation)';
     statusEl.textContent = 'Simulation: Phone support';
     demoFreeze(2000);
@@ -2123,6 +2201,7 @@ ${detSummary}
   });
   simKeyBtn.addEventListener('click', () => {
     activateHand('key');
+    applyHandPngConfig(handPngMap.simKey);
     resultEl.textContent = 'State: KEY (simulation)';
     statusEl.textContent = 'Simulation: Key pinch';
     demoFreeze(2000);
@@ -2130,6 +2209,7 @@ ${detSummary}
   });
   simSaluteBtn.addEventListener('click', () => {
     activateHand('salute');
+    applyHandPngConfig(handPngMap.simSalute);
     resultEl.textContent = 'State: SALUTE (simulation)';
     statusEl.textContent = 'Simulation: Salute pose';
     demoFreeze(2000);
@@ -2153,35 +2233,29 @@ ${detSummary}
         src: 'pen2.png',
         width: handPngEl?.style.width || '60%',
         left: handPngEl?.style.left || '38%',
-        top: handPngEl?.style.top || '25%',
-        opacity: 1
+        top: handPngEl?.style.top || '25%'
       });
     } else if (currentGroup === 'phone') {
       applyHandPngConfig({
         src: 'phone2.png',
         width: handPngEl?.style.width || '90%',
         left: handPngEl?.style.left || '40%',
-        top: handPngEl?.style.top || '20%',
-        opacity: 1
+        top: handPngEl?.style.top || '20%'
       });
     } else if (currentGroup === 'egg') {
       applyHandPngConfig({
         src: 'egg2.png',
         width: handPngEl?.style.width || '90%',
         left: handPngEl?.style.left || '40%',
-        top: handPngEl?.style.top || '25%',
-        opacity: 1
+        top: handPngEl?.style.top || '25%'
       });
     } else if (currentGroup === 'key') {
       applyHandPngConfig({
         src: 'key2.png',
         width: handPngEl?.style.width || '60%',
         left: handPngEl?.style.left || '35%',
-        top: handPngEl?.style.top || '25%',
-        opacity: 1
+        top: handPngEl?.style.top || '25%'
       });
-    } else {
-      setHandPngOpacity(1);
     }
 
     if (currentGroup === 'none') {
@@ -2221,6 +2295,36 @@ ${detSummary}
       updateHud();
       return;
     }
+    if (currentGroup === 'phone') {
+      lockActive = true;
+      activateHand('phone');
+      applyHandPngConfig({
+        src: 'phone0.png',
+        width: handPngEl?.style.width || '90%',
+        left: handPngEl?.style.left || '40%',
+        top: handPngEl?.style.top || '20%'
+      });
+      lockBtn.textContent = 'Lock (ON)';
+      statusEl.textContent = 'Mini-Open: phone image updated.';
+      latestHudLine = 'Mini-Open (phone image swap)';
+      updateHud();
+      return;
+    }
+    if (currentGroup === 'pen') {
+      lockActive = true;
+      activateHand('pen');
+      applyHandPngConfig({
+        src: 'pen0.png',
+        width: handPngEl?.style.width || '60%',
+        left: handPngEl?.style.left || '38%',
+        top: handPngEl?.style.top || '25%'
+      });
+      lockBtn.textContent = 'Lock (ON)';
+      statusEl.textContent = 'Mini-Open: pen image updated.';
+      latestHudLine = 'Mini-Open (pen image swap)';
+      updateHud();
+      return;
+    }
     if (currentGroup === 'key') {
       lockActive = true;
       activateHand('key');
@@ -2228,8 +2332,7 @@ ${detSummary}
         src: 'key0.png',
         width: handPngEl?.style.width || '60%',
         left: handPngEl?.style.left || '35%',
-        top: handPngEl?.style.top || '25%',
-        opacity: 1
+        top: handPngEl?.style.top || '25%'
       });
       lockBtn.textContent = 'Lock (ON)';
       statusEl.textContent = 'Mini-Open: key image updated.';
@@ -2245,8 +2348,7 @@ ${detSummary}
         src: 'egg1.png',
         width: handPngEl?.style.width || '90%',
         left: handPngEl?.style.left || '40%',
-        top: handPngEl?.style.top || '25%',
-        opacity: 1
+        top: handPngEl?.style.top || '25%'
       });
       lockBtn.textContent = 'Lock (ON)';
       statusEl.textContent = 'Mini-Open: egg image updated.';
@@ -2259,7 +2361,6 @@ ${detSummary}
       return;
     }
     clearLockedVisual();
-    setHandPngOpacity(0.35);
     statusEl.textContent = 'Mini-Open: thickness reset (you can Lock again).';
     latestHudLine = 'Mini-Open (visual only)';
     updateHud();
@@ -2292,24 +2393,24 @@ ${detSummary}
     statusEl.textContent = 'Full Relax: lock & freeze cleared. Detection resumes.';
     latestHudLine = makeSvgHudLine();
     if (handPngEl) {
-      if (relaxRestoreTimer) clearTimeout(relaxRestoreTimer);
       applyHandPngConfig({
         src: 'fullopen.png',
         width: handPngEl.style.width || '60%',
         left: handPngEl.style.left || '35%',
-        top: handPngEl.style.top || '25%',
-        opacity: 1
+        top: handPngEl.style.top || '25%'
       });
-      relaxRestoreTimer = setTimeout(() => {
-        setHandPngOpacity(handPngBaseOpacity);
-      }, 1500);
     }
     updateHud();
   });
 
   // ======== Start Camera ========
   startCamBtn.addEventListener('click', async () => {
+    if (cameraActive) {
+      stopCamera();
+      return;
+    }
     await initOnDemand();
+    hideEndCard();
     startCamera();
     updateHud();
   });
@@ -2698,34 +2799,10 @@ ${detSummary}
     setHudVisible(false);
     updateHud();
     statusEl.textContent = 'Ready. Tap "Start Camera" to initialize.';
+    setCameraButtonState(false);
+    hideEndCard();
   });
 
-})();// ===== DEMO ONLY: button -> PNG switch =====
-(function () {
-  const handImg = document.getElementById('handPng');
-  if (!handImg) return;
-
-  const map = window.handPngMap || {
-    simEgg:   { src: 'egg1.png', width: '90%', left: '40%' },
-    simPen:   { src: 'pen1.png', width: '60%', left: '38%' },
-    simPhone: { src: 'phone1.png', width: '90%', left: '40%', top: '20%' },
-    simKey:   { src: 'key1.png', width: '60%', left: '35%' },
-    simSalute:{ src: 'salute0.png', width: '60%', left: '35%' }
-  };
-
-  Object.keys(map).forEach(btnId => {
-    const btn = document.getElementById(btnId);
-    if (!btn) return;
-
-    btn.addEventListener('click', () => {
-      const cfg = map[btnId];
-      handImg.src = cfg.src;
-      handImg.style.width = cfg.width || '60%';
-      handImg.style.left = cfg.left || '35%';
-      handImg.style.top = cfg.top || '25%';
-      handImg.style.display = 'block';
-    });
-  });
 })();
 // ===== FORCE CAMERA START (DEMO) =====
 
@@ -2741,8 +2818,7 @@ ${detSummary}
         src: 'phone0.png',
         width: handPngEl?.style.width || '90%',
         left: handPngEl?.style.left || '40%',
-        top: handPngEl?.style.top || '20%',
-        opacity: 1
+        top: handPngEl?.style.top || '20%'
       });
       lockBtn.textContent = 'Lock (ON)';
       statusEl.textContent = 'Mini-Open: phone image updated.';
@@ -2757,8 +2833,7 @@ ${detSummary}
         src: 'egg0.png',
         width: handPngEl?.style.width || '90%',
         left: handPngEl?.style.left || '40%',
-        top: handPngEl?.style.top || '25%',
-        opacity: 1
+        top: handPngEl?.style.top || '25%'
       });
       lockBtn.textContent = 'Lock (ON)';
       statusEl.textContent = 'Mini-Open: egg image updated.';
@@ -2773,8 +2848,7 @@ ${detSummary}
         src: 'pen0.png',
         width: handPngEl?.style.width || '60%',
         left: handPngEl?.style.left || '38%',
-        top: handPngEl?.style.top || '25%',
-        opacity: 1
+        top: handPngEl?.style.top || '25%'
       });
       lockBtn.textContent = 'Lock (ON)';
       statusEl.textContent = 'Mini-Open: pen image updated.';
