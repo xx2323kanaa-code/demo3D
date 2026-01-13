@@ -1054,8 +1054,8 @@ transform: translateX(-50%);
 
   const handPngMap = {
     simEgg:   { src: 'egg1.png', width: '90%', left: '40%' },
-    simPen:   { src: 'pen1(1).png', width: '60%', left: '38%' },
-    simPhone: { src: 'phone1(1).png', width: '90%', left: '40%', top: '20%' },
+    simPen:   { src: 'pen1.png', width: '60%', left: '38%' },
+    simPhone: { src: 'phone1.png', width: '90%', left: '40%', top: '20%' },
     simKey:   { src: 'key1(1).png', width: '60%', left: '35%' },
     simSalute:{ src: 'salute0.png', width: '60%', left: '35%' }
   };
@@ -1661,7 +1661,9 @@ if (restImg && saluteImg) {
 
         if (dominant === 'phone') {
           if (!phoneHoldStart) phoneHoldStart = now;
-          if (!phoneAutoActive && (now - phoneHoldStart) >= 200) {
+        if (!phoneAutoActive && (now - phoneHoldStart) >= 200) {
+            activateHand('phone');
+            resultEl.textContent = 'State: PHONE group detected';
             triggerPhoneAuto(now);
             statusEl.textContent = 'PHONE detected: overlay ON (paused 1s).';
             latestHudLine = 'Phone detected: overlay ON (paused 1s)';
@@ -2299,7 +2301,7 @@ ${detSummary}
       lockActive = true;
       activateHand('phone');
       applyHandPngConfig({
-        src: 'phone0.png',
+        src: 'phone1(2).png',
         width: handPngEl?.style.width || '90%',
         left: handPngEl?.style.left || '40%',
         top: handPngEl?.style.top || '20%'
