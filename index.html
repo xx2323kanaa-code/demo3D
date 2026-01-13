@@ -936,9 +936,6 @@ transform: translateX(-50%);
   let eggHoldStart = 0;
   let eggAutoActive = false;
   let penDisplayTimer = 0;
-  let penSwapTimer = 0;
-  let phoneSwapTimer = 0;
-  let keySwapTimer = 0;
   const penDisplayMs = 2000;
   const penTriggerMs = 1000;
   const penGraceMs = 700;
@@ -1057,9 +1054,9 @@ transform: translateX(-50%);
 
   const handPngMap = {
     simEgg:   { src: 'egg1.png', width: '90%', left: '40%' },
-    simPen:   { src: 'pen1.png', width: '60%', left: '38%' },
-    simPhone: { src: 'phone1.png', width: '90%', left: '40%', top: '20%' },
-    simKey:   { src: 'key1.png', width: '60%', left: '35%' },
+    simPen:   { src: 'pen1(1).png', width: '60%', left: '38%' },
+    simPhone: { src: 'phone1(1).png', width: '90%', left: '40%', top: '20%' },
+    simKey:   { src: 'key1(1).png', width: '60%', left: '35%' },
     simSalute:{ src: 'salute0.png', width: '60%', left: '35%' }
   };
   window.handPngMap = handPngMap;
@@ -1074,7 +1071,7 @@ transform: translateX(-50%);
   }
 
   function triggerPhoneAuto(now) {
-    showPhoneTransition();
+    applyHandPngConfig(handPngMap.simPhone);
     phoneAutoActive = true;
     phoneHoldStart = 0;
     detectPauseUntil = now + 1000;
@@ -1096,7 +1093,7 @@ transform: translateX(-50%);
   }
 
   function triggerPenAuto(now) {
-    showPenTransition();
+    applyHandPngConfig(handPngMap.simPen);
     penAutoActive = true;
     penHoldStart = 0;
     detectPausedByPen = true;
@@ -1106,61 +1103,8 @@ transform: translateX(-50%);
     }, penDisplayMs);
   }
 
-  function showKeyTransition() {
-    applyHandPngConfig({
-      src: 'key1(1).png',
-      width: '60%',
-      left: '35%',
-      top: '25%'
-    });
-    if (keySwapTimer) clearTimeout(keySwapTimer);
-    keySwapTimer = setTimeout(() => {
-      applyHandPngConfig(handPngMap.simKey);
-      keySwapTimer = 0;
-    }, 800);
-  }
-
-  function showPenTransition() {
-    applyHandPngConfig({
-      src: 'pen1(1).png',
-      width: '60%',
-      left: '38%',
-      top: '25%'
-    });
-    if (penSwapTimer) clearTimeout(penSwapTimer);
-    penSwapTimer = setTimeout(() => {
-      applyHandPngConfig(handPngMap.simPen);
-      penSwapTimer = 0;
-    }, 800);
-  }
-
-  function showPhoneTransition() {
-    if (phoneSwapTimer) {
-      clearTimeout(phoneSwapTimer);
-      phoneSwapTimer = 0;
-    }
-    applyHandPngConfig({
-      src: 'phone1(2).png',
-      width: '90%',
-      left: '40%',
-      top: '20%'
-    });
-    phoneSwapTimer = setTimeout(() => {
-      applyHandPngConfig({
-        src: 'phone1(1).png',
-        width: '90%',
-        left: '40%',
-        top: '20%'
-      });
-      phoneSwapTimer = setTimeout(() => {
-        applyHandPngConfig(handPngMap.simPhone);
-        phoneSwapTimer = 0;
-      }, 500);
-    }, 300);
-  }
-
   function triggerKeyAuto(now) {
-    showKeyTransition();
+    applyHandPngConfig(handPngMap.simKey);
     keyAutoActive = true;
     detectPausedByKey = true;
   }
@@ -2241,7 +2185,7 @@ ${detSummary}
   });
   simPenBtn.addEventListener('click', () => {
     activateHand('pen');
-    showPenTransition();
+    applyHandPngConfig(handPngMap.simPen);
     resultEl.textContent = 'State: PEN (simulation)';
     statusEl.textContent = 'Simulation: Pen grip';
     demoFreeze(2000);
@@ -2249,7 +2193,7 @@ ${detSummary}
   });
   simPhoneBtn.addEventListener('click', () => {
     activateHand('phone');
-    showPhoneTransition();
+    applyHandPngConfig(handPngMap.simPhone);
     resultEl.textContent = 'State: PHONE (simulation)';
     statusEl.textContent = 'Simulation: Phone support';
     demoFreeze(2000);
@@ -2257,7 +2201,7 @@ ${detSummary}
   });
   simKeyBtn.addEventListener('click', () => {
     activateHand('key');
-    showKeyTransition();
+    applyHandPngConfig(handPngMap.simKey);
     resultEl.textContent = 'State: KEY (simulation)';
     statusEl.textContent = 'Simulation: Key pinch';
     demoFreeze(2000);
@@ -2438,18 +2382,6 @@ ${detSummary}
     eggHoldStart = 0;
     eggAutoActive = false;
     keyWindow = [];
-    if (keySwapTimer) {
-      clearTimeout(keySwapTimer);
-      keySwapTimer = 0;
-    }
-    if (penSwapTimer) {
-      clearTimeout(penSwapTimer);
-      penSwapTimer = 0;
-    }
-    if (phoneSwapTimer) {
-      clearTimeout(phoneSwapTimer);
-      phoneSwapTimer = 0;
-    }
     if (penDisplayTimer) {
       clearTimeout(penDisplayTimer);
       penDisplayTimer = 0;
