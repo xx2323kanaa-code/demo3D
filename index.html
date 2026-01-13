@@ -936,6 +936,9 @@ transform: translateX(-50%);
   let eggHoldStart = 0;
   let eggAutoActive = false;
   let penDisplayTimer = 0;
+  let penSwapTimer = 0;
+  let phoneSwapTimer = 0;
+  let keySwapTimer = 0;
   const penDisplayMs = 2000;
   const penTriggerMs = 1000;
   const penGraceMs = 700;
@@ -1071,7 +1074,7 @@ transform: translateX(-50%);
   }
 
   function triggerPhoneAuto(now) {
-    applyHandPngConfig(handPngMap.simPhone);
+    showPhoneTransition();
     phoneAutoActive = true;
     phoneHoldStart = 0;
     detectPauseUntil = now + 1000;
@@ -1093,7 +1096,7 @@ transform: translateX(-50%);
   }
 
   function triggerPenAuto(now) {
-    applyHandPngConfig(handPngMap.simPen);
+    showPenTransition();
     penAutoActive = true;
     penHoldStart = 0;
     detectPausedByPen = true;
@@ -1103,8 +1106,61 @@ transform: translateX(-50%);
     }, penDisplayMs);
   }
 
+  function showKeyTransition() {
+    applyHandPngConfig({
+      src: 'key1(1).png',
+      width: '60%',
+      left: '35%',
+      top: '25%'
+    });
+    if (keySwapTimer) clearTimeout(keySwapTimer);
+    keySwapTimer = setTimeout(() => {
+      applyHandPngConfig(handPngMap.simKey);
+      keySwapTimer = 0;
+    }, 800);
+  }
+
+  function showPenTransition() {
+    applyHandPngConfig({
+      src: 'pen1(1).png',
+      width: '60%',
+      left: '38%',
+      top: '25%'
+    });
+    if (penSwapTimer) clearTimeout(penSwapTimer);
+    penSwapTimer = setTimeout(() => {
+      applyHandPngConfig(handPngMap.simPen);
+      penSwapTimer = 0;
+    }, 800);
+  }
+
+  function showPhoneTransition() {
+    if (phoneSwapTimer) {
+      clearTimeout(phoneSwapTimer);
+      phoneSwapTimer = 0;
+    }
+    applyHandPngConfig({
+      src: 'phone1(2).png',
+      width: '90%',
+      left: '40%',
+      top: '20%'
+    });
+    phoneSwapTimer = setTimeout(() => {
+      applyHandPngConfig({
+        src: 'phone1(1).png',
+        width: '90%',
+        left: '40%',
+        top: '20%'
+      });
+      phoneSwapTimer = setTimeout(() => {
+        applyHandPngConfig(handPngMap.simPhone);
+        phoneSwapTimer = 0;
+      }, 500);
+    }, 300);
+  }
+
   function triggerKeyAuto(now) {
-    applyHandPngConfig(handPngMap.simKey);
+    showKeyTransition();
     keyAutoActive = true;
     detectPausedByKey = true;
   }
@@ -2185,7 +2241,7 @@ ${detSummary}
   });
   simPenBtn.addEventListener('click', () => {
     activateHand('pen');
-    applyHandPngConfig(handPngMap.simPen);
+    showPenTransition();
     resultEl.textContent = 'State: PEN (simulation)';
     statusEl.textContent = 'Simulation: Pen grip';
     demoFreeze(2000);
@@ -2193,7 +2249,7 @@ ${detSummary}
   });
   simPhoneBtn.addEventListener('click', () => {
     activateHand('phone');
-    applyHandPngConfig(handPngMap.simPhone);
+    showPhoneTransition();
     resultEl.textContent = 'State: PHONE (simulation)';
     statusEl.textContent = 'Simulation: Phone support';
     demoFreeze(2000);
@@ -2201,7 +2257,7 @@ ${detSummary}
   });
   simKeyBtn.addEventListener('click', () => {
     activateHand('key');
-    applyHandPngConfig(handPngMap.simKey);
+    showKeyTransition();
     resultEl.textContent = 'State: KEY (simulation)';
     statusEl.textContent = 'Simulation: Key pinch';
     demoFreeze(2000);
@@ -2382,6 +2438,18 @@ ${detSummary}
     eggHoldStart = 0;
     eggAutoActive = false;
     keyWindow = [];
+    if (keySwapTimer) {
+      clearTimeout(keySwapTimer);
+      keySwapTimer = 0;
+    }
+    if (penSwapTimer) {
+      clearTimeout(penSwapTimer);
+      penSwapTimer = 0;
+    }
+    if (phoneSwapTimer) {
+      clearTimeout(phoneSwapTimer);
+      phoneSwapTimer = 0;
+    }
     if (penDisplayTimer) {
       clearTimeout(penDisplayTimer);
       penDisplayTimer = 0;
@@ -2811,48 +2879,3 @@ ${detSummary}
 
 </body>
 </html>
-    if (currentGroup === 'phone') {
-      lockActive = true;
-      activateHand('phone');
-      applyHandPngConfig({
-        src: 'phone0.png',
-        width: handPngEl?.style.width || '90%',
-        left: handPngEl?.style.left || '40%',
-        top: handPngEl?.style.top || '20%'
-      });
-      lockBtn.textContent = 'Lock (ON)';
-      statusEl.textContent = 'Mini-Open: phone image updated.';
-      latestHudLine = 'Mini-Open (phone image swap)';
-      updateHud();
-      return;
-    }
-    if (currentGroup === 'egg') {
-      lockActive = true;
-      activateHand('egg');
-      applyHandPngConfig({
-        src: 'egg0.png',
-        width: handPngEl?.style.width || '90%',
-        left: handPngEl?.style.left || '40%',
-        top: handPngEl?.style.top || '25%'
-      });
-      lockBtn.textContent = 'Lock (ON)';
-      statusEl.textContent = 'Mini-Open: egg image updated.';
-      latestHudLine = 'Mini-Open (egg image swap)';
-      updateHud();
-      return;
-    }
-    if (currentGroup === 'pen') {
-      lockActive = true;
-      activateHand('pen');
-      applyHandPngConfig({
-        src: 'pen0.png',
-        width: handPngEl?.style.width || '60%',
-        left: handPngEl?.style.left || '38%',
-        top: handPngEl?.style.top || '25%'
-      });
-      lockBtn.textContent = 'Lock (ON)';
-      statusEl.textContent = 'Mini-Open: pen image updated.';
-      latestHudLine = 'Mini-Open (pen image swap)';
-      updateHud();
-      return;
-    }
